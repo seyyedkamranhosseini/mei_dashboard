@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1765559289478,
+      "tag": "0000_fuzzy_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1765559397209,
+      "tag": "0001_legal_angel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1765733380676,
+      "tag": "0002_brown_crusher_hogan",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1769912832038,
+      "tag": "0003_stale_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1772998831797,
+      "tag": "0004_purple_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1772999076593,
+      "tag": "0005_curious_sersi",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1774371353062,
+      "tag": "0006_cultured_micromacro",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1774600000000,
+      "tag": "0007_remove_daily_cc_distribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1774700000000,
+      "tag": "0008_add_daily_work_requirements",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1774774284736,
+      "tag": "0009_shiny_luke_cage",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1774854417392,
+      "tag": "0010_lively_tag",
+      "breakpoints": true
+    }
+  ]
+}
