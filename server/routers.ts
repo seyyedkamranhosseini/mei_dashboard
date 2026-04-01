@@ -480,13 +480,27 @@ export const appRouter = router({
           });
         }
 
-        const logoPath = path.resolve(import.meta.dirname, "assets", "Logo.jpg");
+        // Try multiple likely locations for Logo.jpg so the image is found
+        // regardless of build layout (bundled dist, working dir, or public folder).
+        const candidatePaths = [
+          path.resolve(import.meta.dirname, "assets", "Logo.jpg"),
+          path.resolve(process.cwd(), "dist", "assets", "Logo.jpg"),
+          path.resolve(process.cwd(), "assets", "Logo.jpg"),
+          path.resolve(process.cwd(), "public", "assets", "Logo.jpg"),
+        ];
+
         let logoBuffer: Buffer | undefined;
-        try {
-          logoBuffer = await fs.promises.readFile(logoPath);
-        } catch {
-          logoBuffer = undefined;
+        for (const p of candidatePaths) {
+          try {
+            const b = await fs.promises.readFile(p);
+            logoBuffer = b;
+            console.info(`[PDF] Loaded logo from ${p}`);
+            break;
+          } catch (_err) {
+            // try next path
+          }
         }
+        if (!logoBuffer) console.warn("[PDF] Logo.jpg not found in candidate paths; continuing without logo.");
 
         // Inject latest admin decision (if any) into the PDF signature block.
         const approvals = await db.getApprovalsByFormId("daily", report.id);
