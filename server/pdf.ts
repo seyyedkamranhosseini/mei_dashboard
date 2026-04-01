@@ -481,7 +481,7 @@ export async function generateDailyReportPDF(
       const safeName = sanitizeText(att.fileName || "Attachment");
       const safeMimeLabel = sanitizeText(mimeType) || "attachment";
 
-      if (mimeType.startsWith("image/") && INLINE_IMAGE_TYPES.has(mimeType)) {
+        if (mimeType.startsWith("image/") && INLINE_IMAGE_TYPES.has(mimeType)) {
         try {
           const fileBytes = await fetchImageBytes(att.fileKey, att.fileUrl);
           if (!fileBytes) {
@@ -506,7 +506,14 @@ export async function generateDailyReportPDF(
           if (pendingImages.length === imageColumns) {
             drawImageRow(pendingImages.splice(0, pendingImages.length));
           }
-        } catch {
+        } catch (err) {
+          console.error('[PDF] Failed to render attachment image', {
+            attachmentId: att.id,
+            fileKey: att.fileKey,
+            fileUrl: att.fileUrl,
+            mimeType,
+            error: err instanceof Error ? err.message : String(err),
+          });
           if (pendingImages.length) {
             drawImageRow(pendingImages.splice(0, pendingImages.length));
           }
