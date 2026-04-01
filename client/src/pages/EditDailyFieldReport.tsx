@@ -81,7 +81,25 @@ export default function EditDailyFieldReport() {
           ? report.date.slice(0, 10)
           : new Date(report.date).toISOString().slice(0, 10))
       : "";
-    const selectedFromReport = (report.inspectionTypes as string[]) ?? [];
+    // Ensure inspectionTypes is normalized to an array before using array methods
+    const parseInspectionTypes = (value: unknown): string[] => {
+      if (Array.isArray(value)) return value as string[];
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) return parsed as string[];
+        } catch {
+          // not JSON - fall through to comma/newline split
+        }
+        return value
+          .split(/[,\\n]/g)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
+
+    const selectedFromReport = parseInspectionTypes(report.inspectionTypes);
     const additional = Array.from(new Set(selectedFromReport.filter((t) => !inspectionTypes.includes(t))));
     setCustomInspectionTypeOptions(additional);
     setCustomInspectionTypeInput("");
