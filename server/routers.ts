@@ -487,6 +487,9 @@ export const appRouter = router({
           path.resolve(process.cwd(), "dist", "assets", "Logo.jpg"),
           path.resolve(process.cwd(), "assets", "Logo.jpg"),
           path.resolve(process.cwd(), "public", "assets", "Logo.jpg"),
+          // Common server layout where assets live under server/assets
+          path.resolve(process.cwd(), "server", "assets", "Logo.jpg"),
+          path.resolve(import.meta.dirname, "..", "server", "assets", "Logo.jpg"),
         ];
 
         let logoBuffer: Buffer | undefined;
