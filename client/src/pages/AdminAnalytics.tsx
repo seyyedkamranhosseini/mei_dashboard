@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { trpc } from "@/lib/trpc";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -33,10 +35,22 @@ export default function AdminAnalytics() {
 
   const dailyStats = data?.dailyStats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
   const concreteStats = data?.concreteStats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
-  const strengthByProject = data?.strengthByProject ?? [];
-  const dailyTrend = data?.dailyTrend ?? [];
-  const concreteTrend = data?.concreteTrend ?? [];
-  const inspectorStats = data?.inspectorStats ?? [];
+  const { items: strengthByProject, issue: strengthIssue } = normalizeCollection<any>(
+    data?.strengthByProject,
+    "strength analytics"
+  );
+  const { items: dailyTrend, issue: dailyTrendIssue } = normalizeCollection<any>(
+    data?.dailyTrend,
+    "daily trend analytics"
+  );
+  const { items: concreteTrend, issue: concreteTrendIssue } = normalizeCollection<any>(
+    data?.concreteTrend,
+    "concrete trend analytics"
+  );
+  const { items: inspectorStats, issue: inspectorStatsIssue } = normalizeCollection<any>(
+    data?.inspectorStats,
+    "inspector analytics"
+  );
 
   const totalDailyReports = dailyStats.total;
   const totalConcreteTests = concreteStats.total;
@@ -91,6 +105,14 @@ export default function AdminAnalytics() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {(strengthIssue || dailyTrendIssue || concreteTrendIssue || inspectorStatsIssue) && (
+          <Alert>
+            <AlertDescription>
+              {strengthIssue || dailyTrendIssue || concreteTrendIssue || inspectorStatsIssue}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
           <p className="text-gray-600 mt-1">Accurate submission counts, trends, and approval metrics</p>

@@ -2,7 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -51,11 +53,20 @@ export default function NotificationsPage() {
     );
   }
 
-  const notifications = notificationsQuery.data || [];
+  const { items: notifications, issue: notificationsIssue } = normalizeCollection<any>(
+    notificationsQuery.data,
+    "notification"
+  );
   const unreadCount = unreadCountQuery.data?.count ?? 0;
 
   return (
     <div className="space-y-6">
+      {notificationsIssue && (
+        <Alert>
+          <AlertDescription>{notificationsIssue}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Notifications</h1>

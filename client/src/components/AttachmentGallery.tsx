@@ -15,6 +15,8 @@
 import { useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import { Loader2, Trash2, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 
@@ -120,7 +122,11 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
   const isImage = (mimeType: string) => mimeType.startsWith("image/");
 
   const isBusy = uploading || uploadMutation.isPending || deleteMutation.isPending;
-  const visibleExistingAttachments = (existingAttachments || []).filter(
+  const { items: normalizedExistingAttachments, issue: attachmentIssue } = normalizeCollection<any>(
+    existingAttachments,
+    `${formType} attachment`
+  );
+  const visibleExistingAttachments = normalizedExistingAttachments.filter(
     (att: any) => !pendingDeletionIds.includes(att.id)
   );
 
@@ -137,6 +143,12 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
 
   return (
     <div className="space-y-3">
+      {attachmentIssue && (
+        <Alert>
+          <AlertDescription>{attachmentIssue}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

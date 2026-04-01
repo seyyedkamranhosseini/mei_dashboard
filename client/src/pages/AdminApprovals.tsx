@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import { Loader2, FileText, CheckCircle, XCircle, Clock, Edit2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -181,8 +183,14 @@ export default function AdminApprovals() {
     );
   }
 
-  const allDailyReports = dailyReportsQuery.data || [];
-  const allConcreteTests = concreteTestsQuery.data || [];
+  const { items: allDailyReports, issue: dailyReportsIssue } = normalizeCollection<any>(
+    dailyReportsQuery.data,
+    "daily approval"
+  );
+  const { items: allConcreteTests, issue: concreteTestsIssue } = normalizeCollection<any>(
+    concreteTestsQuery.data,
+    "concrete approval"
+  );
 
   // Filter pending items
   const pendingDailyReports = allDailyReports.filter(
@@ -216,6 +224,14 @@ export default function AdminApprovals() {
 
   return (
     <div className="space-y-6">
+      {(dailyReportsIssue || concreteTestsIssue) && (
+        <Alert>
+          <AlertDescription>
+            {dailyReportsIssue || concreteTestsIssue}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold">Approvals</h1>
         <p className="text-muted-foreground mt-2">

@@ -28,9 +28,18 @@ export default function Login() {
     try {
       const result = await loginMutation.mutateAsync({ username, password });
       toast.success('Login successful!');
-      
+
+      const role = result && typeof result === "object" && "role" in result
+        ? result.role
+        : "user";
+
+      if (role !== "admin" && role !== "user") {
+        console.error("[Auth] Unexpected login response role:", result);
+        toast.error("Login succeeded, but your account data was incomplete. Redirecting safely.");
+      }
+
       // Redirect based on role
-      if (result.role === 'admin') {
+      if (role === 'admin') {
         setLocation('/admin/reports');
       } else {
         setLocation('/employee/daily-report');

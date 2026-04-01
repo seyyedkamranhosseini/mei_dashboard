@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import { Loader2, FileText, Eye, Edit2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -93,11 +95,25 @@ export default function MySubmissions() {
     );
   }
 
-  const dailyReports = dailyReportsQuery.data || [];
-  const concreteTests = concreteTestsQuery.data || [];
+  const { items: dailyReports, issue: dailyReportsIssue } = normalizeCollection<any>(
+    dailyReportsQuery.data,
+    "daily submission"
+  );
+  const { items: concreteTests, issue: concreteTestsIssue } = normalizeCollection<any>(
+    concreteTestsQuery.data,
+    "concrete submission"
+  );
 
   return (
     <div className="space-y-6">
+      {(dailyReportsIssue || concreteTestsIssue) && (
+        <Alert>
+          <AlertDescription>
+            {dailyReportsIssue || concreteTestsIssue}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold">My Submissions</h1>
         <p className="text-muted-foreground mt-2">

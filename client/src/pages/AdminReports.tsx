@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
+import { normalizeCollection } from "@/lib/normalize-collection";
 import { Loader2, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -73,8 +75,14 @@ export default function AdminReports() {
     );
   }
 
-  const allDailyReports = dailyReportsQuery.data || [];
-  const allConcreteTests = concreteTestsQuery.data || [];
+  const { items: allDailyReports, issue: dailyReportsIssue } = normalizeCollection<any>(
+    dailyReportsQuery.data,
+    "daily report"
+  );
+  const { items: allConcreteTests, issue: concreteTestsIssue } = normalizeCollection<any>(
+    concreteTestsQuery.data,
+    "concrete test"
+  );
 
   // Filter daily reports
   const filteredDailyReports = allDailyReports.filter((report: any) => {
@@ -106,6 +114,14 @@ export default function AdminReports() {
 
   return (
     <div className="space-y-6">
+      {(dailyReportsIssue || concreteTestsIssue) && (
+        <Alert>
+          <AlertDescription>
+            {dailyReportsIssue || concreteTestsIssue}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold">All Reports</h1>
         <p className="text-muted-foreground mt-2">
