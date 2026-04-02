@@ -73,13 +73,15 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
 
     if (fileInputRef.current) fileInputRef.current.value = "";
 
-    const allowedConcreteExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+    const allowedConcreteExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif', '.tiff', '.bmp', '.svg'];
     const isAllowedConcreteFile = (file: File) => {
       const name = (file.name || '').toLowerCase();
       const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
       const mime = (file.type || '').toLowerCase();
       if (file.size === 0) return false;
-      if (mime && (mime === 'image/jpeg' || mime === 'image/jpg' || mime === 'image/png' || mime === 'image/webp' || mime === 'image/heic' || mime === 'image/heif')) return true;
+      // Accept any browser-reported image/* MIME
+      if (mime && mime.startsWith('image/')) return true;
+      // Fall back to extension checks for cases where mime is empty
       if (allowedConcreteExt.includes(ext)) return true;
       return false;
     };

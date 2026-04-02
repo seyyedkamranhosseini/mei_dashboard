@@ -37,7 +37,8 @@ function detectImageFormat(
   fileName: string,
   mimeType: string,
   bytes: Uint8Array
-): "png" | "jpg" | "webp" | "heic" | null {
+): "png" | "jpg" | "webp" | "heic" | "avif" | "gif" | "tiff" | "bmp" | "svg" | null {
+  // PNG signature
   if (
     bytes.length >= 8 &&
     bytes[0] === 0x89 &&
@@ -52,6 +53,7 @@ function detectImageFormat(
     return "png";
   }
 
+  // JPEG
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
     return "jpg";
   }
@@ -71,29 +73,56 @@ function detectImageFormat(
     return "webp";
   }
 
-  // HEIC/HEIF detection: look for 'ftyp' box and brand
+  // AVIF/HEIF/HEIC detection via 'ftyp' brand
   if (bytes.length >= 12) {
-    const str = String.fromCharCode(...Array.from(bytes.slice(4, 12)));
-    if (str.includes('ftyp')) {
+    const ftyp = String.fromCharCode(...Array.from(bytes.slice(4, 8)));
+    if (ftyp === 'ftyp' || String.fromCharCode(...Array.from(bytes.slice(4, 12))).includes('ftyp')) {
       const brand = String.fromCharCode(...Array.from(bytes.slice(8, 12)));
       if (brand === 'heic' || brand === 'heif' || brand === 'mif1' || brand === 'msf1') return 'heic';
+      if (brand === 'avif') return 'avif';
     }
   }
+
+  // GIF header
+  if (bytes.length >= 6) {
+    const sig = String.fromCharCode(...Array.from(bytes.slice(0, 6)));
+    if (sig === 'GIF89a' || sig === 'GIF87a') return 'gif';
+  }
+
+  // TIFF (little-endian II* or big-endian MM*)
+  if (bytes.length >= 4) {
+    if ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2A && bytes[3] === 0x00) ||
+        (bytes[0] === 0x4D && bytes[1] === 0x4D && bytes[2] === 0x00 && bytes[3] === 0x2A)) return 'tiff';
+  }
+
+  // BMP 'BM'
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4D) return 'bmp';
 
   const normalizedMime = mimeType.toLowerCase();
   if (normalizedMime === "image/png") return "png";
   if (normalizedMime === "image/jpeg" || normalizedMime === "image/jpg") return "jpg";
   if (normalizedMime === "image/webp") return "webp";
   if (normalizedMime === "image/heic" || normalizedMime === "image/heif") return "heic";
+  if (normalizedMime === "image/avif") return "avif";
+  if (normalizedMime === "image/gif") return "gif";
+  if (normalizedMime === "image/tiff") return "tiff";
+  if (normalizedMime === "image/bmp") return "bmp";
+  if (normalizedMime === "image/svg+xml") return "svg";
 
   const normalizedName = fileName.toLowerCase();
   if (normalizedName.endsWith(".png")) return "png";
   if (normalizedName.endsWith(".jpg") || normalizedName.endsWith(".jpeg")) return "jpg";
   if (normalizedName.endsWith('.webp')) return 'webp';
   if (normalizedName.endsWith('.heic') || normalizedName.endsWith('.heif')) return 'heic';
+  if (normalizedName.endsWith('.avif')) return 'avif';
+  if (normalizedName.endsWith('.gif')) return 'gif';
+  if (normalizedName.endsWith('.tif') || normalizedName.endsWith('.tiff')) return 'tiff';
+  if (normalizedName.endsWith('.bmp')) return 'bmp';
+  if (normalizedName.endsWith('.svg')) return 'svg';
 
   return null;
 }
+
 
 // Lazy-load sharp at runtime so missing native binaries don't crash the process.
 let _sharp: any | null = null;
@@ -463,6 +492,11 @@ export async function generateDailyReportPDF(
     "image/webp",
     "image/heic",
     "image/heif",
+    "image/avif",
+    "image/gif",
+    "image/tiff",
+    "image/bmp",
+    "image/svg+xml",
   ]);
   const ATTACHMENT_MIN_Y = 56;
   let attachmentCtx: Ctx = ctx;
@@ -550,7 +584,9 @@ export async function generateDailyReportPDF(
             image = await pdfDoc.embedPng(imageBytes);
           } else if (imageFormat === "jpg") {
             image = await pdfDoc.embedJpg(imageBytes);
-          } else if (imageFormat === "webp" || imageFormat === "heic") {
+          } else {
+            // For any other detected format (webp, heic, avif, gif, tiff, bmp, svg, etc.)
+            // attempt to convert to JPEG via sharp (if available).
             try {
               const sharpLib = await loadSharp();
               if (!sharpLib) throw new Error("sharp unavailable");
@@ -559,8 +595,6 @@ export async function generateDailyReportPDF(
             } catch (convErr) {
               throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
             }
-          } else {
-            throw new Error("unsupported image bytes");
           }
           const dims = image.scale(1);
           const scale = Math.min(imageCellWidth / dims.width, imageMaxHeight / dims.height, 1);
@@ -980,7 +1014,7 @@ export async function generateConcreteTestPDF(
             image = await pdfDoc.embedPng(imageBytes);
           } else if (imageFormat === "jpg") {
             image = await pdfDoc.embedJpg(imageBytes);
-          } else if (imageFormat === "webp" || imageFormat === "heic") {
+          } else {
             try {
               const sharpLib = await loadSharp();
               if (!sharpLib) throw new Error("sharp unavailable");
@@ -989,8 +1023,6 @@ export async function generateConcreteTestPDF(
             } catch (convErr) {
               throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
             }
-          } else {
-            throw new Error("unsupported image bytes");
           }
           const dims = image.scale(1);
           const scale = Math.min(imageCellWidth / dims.width, imageMaxHeight / dims.height, 1);

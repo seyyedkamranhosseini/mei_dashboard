@@ -41,9 +41,14 @@ export const attachmentRouter = router({
             'image/webp',
             'image/heic',
             'image/heif',
+            'image/avif',
+            'image/gif',
+            'image/tiff',
+            'image/bmp',
+            'image/svg+xml',
           ]);
           const ext = (input.fileName || '').toLowerCase().includes('.') ? (input.fileName || '').toLowerCase().slice((input.fileName || '').lastIndexOf('.')) : '';
-          const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']);
+          const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif', '.tif', '.tiff', '.bmp', '.svg']);
           if (!(allowed.has((input.mimeType || '').toLowerCase()) || allowedExt.has(ext))) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unsupported file type for concrete attachments' });
           }
