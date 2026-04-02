@@ -1,4 +1,5 @@
 import { PDFDocument, PDFImage, rgb, StandardFonts, PDFFont, PDFPage, RGB } from "pdf-lib";
+import sharp from "sharp";
 import type { DailyFieldReport, ConcreteTest, Specimen } from "../drizzle/schema";
 import { getAttachmentsByFormId } from "./db-attachments";
 import { storageRead } from "./storage";
@@ -37,7 +38,7 @@ function detectImageFormat(
   fileName: string,
   mimeType: string,
   bytes: Uint8Array
-): "png" | "jpg" | null {
+): "png" | "jpg" | "webp" | "heic" | null {
   if (
     bytes.length >= 8 &&
     bytes[0] === 0x89 &&
@@ -56,13 +57,41 @@ function detectImageFormat(
     return "jpg";
   }
 
+  // WebP signature: 'RIFF'....'WEBP'
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "webp";
+  }
+
+  // HEIC/HEIF detection: look for 'ftyp' box and brand
+  if (bytes.length >= 12) {
+    const str = String.fromCharCode(...Array.from(bytes.slice(4, 12)));
+    if (str.includes('ftyp')) {
+      const brand = String.fromCharCode(...Array.from(bytes.slice(8, 12)));
+      if (brand === 'heic' || brand === 'heif' || brand === 'mif1' || brand === 'msf1') return 'heic';
+    }
+  }
+
   const normalizedMime = mimeType.toLowerCase();
   if (normalizedMime === "image/png") return "png";
   if (normalizedMime === "image/jpeg" || normalizedMime === "image/jpg") return "jpg";
+  if (normalizedMime === "image/webp") return "webp";
+  if (normalizedMime === "image/heic" || normalizedMime === "image/heif") return "heic";
 
   const normalizedName = fileName.toLowerCase();
   if (normalizedName.endsWith(".png")) return "png";
   if (normalizedName.endsWith(".jpg") || normalizedName.endsWith(".jpeg")) return "jpg";
+  if (normalizedName.endsWith('.webp')) return 'webp';
+  if (normalizedName.endsWith('.heic') || normalizedName.endsWith('.heif')) return 'heic';
 
   return null;
 }
@@ -412,7 +441,14 @@ export async function generateDailyReportPDF(
   y -= 13;
 
   const attachments = await getAttachmentsByFormId("daily", report.id);
-  const INLINE_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png"]);
+  const INLINE_IMAGE_TYPES = new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+  ]);
   const ATTACHMENT_MIN_Y = 56;
   let attachmentCtx: Ctx = ctx;
   let attachmentY = y;
@@ -494,10 +530,21 @@ export async function generateDailyReportPDF(
             throw new Error("unsupported image bytes");
           }
 
-          const image =
-            imageFormat === "png"
-              ? await pdfDoc.embedPng(imageBytes)
-              : await pdfDoc.embedJpg(imageBytes);
+          let image;
+          if (imageFormat === "png") {
+            image = await pdfDoc.embedPng(imageBytes);
+          } else if (imageFormat === "jpg") {
+            image = await pdfDoc.embedJpg(imageBytes);
+          } else if (imageFormat === "webp" || imageFormat === "heic") {
+            try {
+              const converted = await sharp(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
+              image = await pdfDoc.embedJpg(converted);
+            } catch (convErr) {
+              throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
+            }
+          } else {
+            throw new Error("unsupported image bytes");
+          }
           const dims = image.scale(1);
           const scale = Math.min(imageCellWidth / dims.width, imageMaxHeight / dims.height, 1);
           const drawWidth = dims.width * scale;
@@ -911,10 +958,21 @@ export async function generateConcreteTestPDF(
           const imageBytes = new Uint8Array(fileBytes);
           const imageFormat = detectImageFormat(safeName, mimeType, imageBytes);
           if (!imageFormat) throw new Error("unsupported image bytes");
-          const image =
-            imageFormat === "png"
-              ? await pdfDoc.embedPng(imageBytes)
-              : await pdfDoc.embedJpg(imageBytes);
+          let image;
+          if (imageFormat === "png") {
+            image = await pdfDoc.embedPng(imageBytes);
+          } else if (imageFormat === "jpg") {
+            image = await pdfDoc.embedJpg(imageBytes);
+          } else if (imageFormat === "webp" || imageFormat === "heic") {
+            try {
+              const converted = await sharp(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
+              image = await pdfDoc.embedJpg(converted);
+            } catch (convErr) {
+              throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
+            }
+          } else {
+            throw new Error("unsupported image bytes");
+          }
           const dims = image.scale(1);
           const scale = Math.min(imageCellWidth / dims.width, imageMaxHeight / dims.height, 1);
           pendingImages.push({

@@ -32,6 +32,26 @@ export const attachmentRouter = router({
         }
 
         // Upload to S3
+        // Validate for concrete form: only allow common mobile image types
+        if (input.formType === 'concrete') {
+          const allowed = new Set([
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif',
+          ]);
+          const ext = (input.fileName || '').toLowerCase().includes('.') ? (input.fileName || '').toLowerCase().slice((input.fileName || '').lastIndexOf('.')) : '';
+          const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']);
+          if (!(allowed.has((input.mimeType || '').toLowerCase()) || allowedExt.has(ext))) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unsupported file type for concrete attachments' });
+          }
+          if (!input.fileData || (input.fileData as Uint8Array).length === 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Empty or corrupted file' });
+          }
+        }
+
         const fileKey = `attachments/${ctx.user.id}/${input.formType}/${input.formId}/${Date.now()}-${input.fileName}`;
         const fileBuffer = Buffer.from(input.fileData);
         const { url } = await storagePut(

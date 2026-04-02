@@ -73,6 +73,31 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
 
     if (fileInputRef.current) fileInputRef.current.value = "";
 
+    const allowedConcreteExt = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+    const isAllowedConcreteFile = (file: File) => {
+      const name = (file.name || '').toLowerCase();
+      const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+      const mime = (file.type || '').toLowerCase();
+      if (file.size === 0) return false;
+      if (mime && (mime === 'image/jpeg' || mime === 'image/jpg' || mime === 'image/png' || mime === 'image/webp' || mime === 'image/heic' || mime === 'image/heif')) return true;
+      if (allowedConcreteExt.includes(ext)) return true;
+      return false;
+    };
+
+    // Validate selected files for concrete forms
+    if (formType === 'concrete') {
+      for (const file of files) {
+        if (!isAllowedConcreteFile(file)) {
+          toast.error(`Unsupported file type: ${file.name}`);
+          return;
+        }
+        if (file.size === 0) {
+          toast.error(`File appears empty or corrupted: ${file.name}`);
+          return;
+        }
+      }
+    }
+
     if (formId === null) {
       // Create mode — stage locally
       const newFiles = [...stagedFiles, ...files];
@@ -178,7 +203,11 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
               ref={fileInputRef}
               type="file"
               multiple
-              accept="image/*,.pdf,.doc,.docx,.txt,.rtf"
+              accept={
+                formType === "concrete"
+                  ? ".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
+                  : "image/*,.pdf,.doc,.docx,.txt,.rtf"
+              }
               className="hidden"
               onChange={handleFileChange}
             />
