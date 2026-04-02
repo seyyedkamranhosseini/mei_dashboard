@@ -1,5 +1,4 @@
 import { PDFDocument, PDFImage, rgb, StandardFonts, PDFFont, PDFPage, RGB } from "pdf-lib";
-import sharp from "sharp";
 import type { DailyFieldReport, ConcreteTest, Specimen } from "../drizzle/schema";
 import { getAttachmentsByFormId } from "./db-attachments";
 import { storageRead } from "./storage";
@@ -94,6 +93,22 @@ function detectImageFormat(
   if (normalizedName.endsWith('.heic') || normalizedName.endsWith('.heif')) return 'heic';
 
   return null;
+}
+
+// Lazy-load sharp at runtime so missing native binaries don't crash the process.
+let _sharp: any | null = null;
+async function loadSharp(): Promise<any | null> {
+  if (_sharp !== null) return _sharp;
+  try {
+    const mod = await import("sharp");
+    // support both CJS and ESM default exports
+    _sharp = (mod && (mod.default ?? mod)) as any;
+    return _sharp;
+  } catch (err) {
+    _sharp = null;
+    console.warn("[PDF] sharp unavailable, image conversions will be skipped");
+    return null;
+  }
 }
 
 function parseInspectionTypes(value: unknown): string[] {
@@ -537,7 +552,9 @@ export async function generateDailyReportPDF(
             image = await pdfDoc.embedJpg(imageBytes);
           } else if (imageFormat === "webp" || imageFormat === "heic") {
             try {
-              const converted = await sharp(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
+              const sharpLib = await loadSharp();
+              if (!sharpLib) throw new Error("sharp unavailable");
+              const converted = await sharpLib(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
               image = await pdfDoc.embedJpg(converted);
             } catch (convErr) {
               throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
@@ -965,7 +982,9 @@ export async function generateConcreteTestPDF(
             image = await pdfDoc.embedJpg(imageBytes);
           } else if (imageFormat === "webp" || imageFormat === "heic") {
             try {
-              const converted = await sharp(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
+              const sharpLib = await loadSharp();
+              if (!sharpLib) throw new Error("sharp unavailable");
+              const converted = await sharpLib(Buffer.from(imageBytes)).jpeg({ quality: 90 }).toBuffer();
               image = await pdfDoc.embedJpg(converted);
             } catch (convErr) {
               throw new Error(`conversion failed: ${convErr instanceof Error ? convErr.message : String(convErr)}`);
