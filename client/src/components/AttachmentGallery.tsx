@@ -106,9 +106,18 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
       const newPreviews = [...stagedPreviews];
 
       for (const file of files) {
-        if (file.type.startsWith("image/")) {
-          const dataUrl = await readAsDataUrl(file);
-          newPreviews.push(dataUrl);
+        const looksLikeImage = file.type.startsWith("image/") || isImage("", file.name);
+        if (looksLikeImage && file.type !== "") {
+          // Standard image — read as data URL for preview
+          try {
+            const dataUrl = await readAsDataUrl(file);
+            newPreviews.push(dataUrl);
+          } catch {
+            newPreviews.push("");
+          }
+        } else if (looksLikeImage) {
+          // HEIC/HEIF or unknown image extension with no MIME — no inline preview possible
+          newPreviews.push("");
         } else {
           newPreviews.push("");
         }
@@ -122,13 +131,31 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
       setUploading(true);
       try {
         for (const file of files) {
-          const buffer = await file.arrayBuffer();
+          let uploadName = file.name;
+          let mime = file.type;
+          let data: Uint8Array;
+          // Compress large images on the client to avoid 413s
+          const fileIsImage = file.type.startsWith("image/") ||
+            ["jpg","jpeg","png","webp","heic","heif","avif","gif","bmp"].includes(
+              (file.name || "").toLowerCase().split(".").pop() || ""
+            );
+          if (fileIsImage && file.size > 1000 * 1000) {
+            data = await compressImage(file, 1920, 0.8);
+            mime = "image/jpeg";
+            if (!uploadName.toLowerCase().endsWith('.jpg') && !uploadName.toLowerCase().endsWith('.jpeg')) {
+              uploadName = `${uploadName}.jpg`;
+            }
+          } else {
+            const buffer = await file.arrayBuffer();
+            data = new Uint8Array(buffer);
+          }
+
           await uploadMutation.mutateAsync({
             formType,
             formId,
-            fileName: file.name,
-            fileData: new Uint8Array(buffer),
-            mimeType: file.type,
+            fileName: uploadName,
+            fileData: data,
+            mimeType: mime,
           });
         }
         toast.success(`${files.length} file(s) uploaded`);
@@ -146,7 +173,12 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
     onStagedFilesChange?.(newFiles);
   };
 
-  const isImage = (mimeType: string) => mimeType.startsWith("image/");
+  // HEIC/HEIF files often report empty MIME in browsers — check filename too
+  const isImage = (mimeType: string, fileName?: string) => {
+    if (mimeType.startsWith("image/")) return true;
+    const ext = (fileName || "").toLowerCase().split(".").pop() || "";
+    return ["jpg","jpeg","png","webp","heic","heif","avif","gif","tiff","tif","bmp"].includes(ext);
+  };
 
   const isBusy = uploading || uploadMutation.isPending || deleteMutation.isPending;
   const { items: normalizedExistingAttachments, issue: attachmentIssue } = normalizeCollection<any>(
@@ -233,7 +265,7 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
               key={att.id}
               name={att.fileName}
               url={att.signedUrl}
-              isImage={isImage(att.mimeType)}
+              isImage={isImage(att.mimeType, att.fileName)}
               onDelete={() => handleExistingDelete(att.id)}
               deleting={pendingDeletionIds.includes(att.id)}
               readOnly={readOnly}
@@ -246,7 +278,7 @@ export function AttachmentGallery({ formType, formId, onStagedFilesChange, readO
               key={`staged-${i}`}
               name={file.name}
               url={stagedPreviews[i] || ""}
-              isImage={file.type.startsWith("image/")}
+              isImage={isImage(file.type, file.name)}
               onDelete={() => removeStagedFile(i)}
               staged
               readOnly={readOnly}
@@ -341,19 +373,48 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
+// Compress image files on the client to reduce upload size. Falls back to original bytes on failure.
+async function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<Uint8Array> {
+  if (!file.type.startsWith("image/")) return new Uint8Array(await file.arrayBuffer());
+  try {
+    // createImageBitmap handles blobs efficiently
+    const bitmap = await createImageBitmap(file as any);
+    const origW = bitmap.width;
+    const origH = bitmap.height;
+    const scale = Math.min(1, maxWidth / origW);
+    const w = Math.max(1, Math.round(origW * scale));
+    const h = Math.max(1, Math.round(origH * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) throw new Error("compression failed");
+    const ab = await blob.arrayBuffer();
+    return new Uint8Array(ab);
+  } catch (err) {
+    // fallback to raw bytes
+    return new Uint8Array(await file.arrayBuffer());
+  }
+}
+
 /**
  * Call this from the create form's onSubmit after the report ID is known,
  * to upload all staged files.
  */
 export async function uploadStagedFiles(
-  files: File[],
   formType: "daily" | "concrete",
   formId: number,
+  files: File[],
   uploadFn: (args: {
     formType: "daily" | "concrete";
     formId: number;
     fileName: string;
-    fileData: Uint8Array<ArrayBuffer>;
+    fileData: Uint8Array;
     mimeType: string;
   }) => Promise<any>
 ): Promise<{ uploadedCount: number; failedFiles: string[] }> {
@@ -362,13 +423,30 @@ export async function uploadStagedFiles(
 
   for (const file of files) {
     try {
-      const buffer = await file.arrayBuffer();
+      let uploadName = file.name;
+      let mime = file.type;
+      let data: Uint8Array;
+      const fileIsImage = file.type.startsWith("image/") ||
+        ["jpg","jpeg","png","webp","heic","heif","avif","gif","bmp"].includes(
+          (file.name || "").toLowerCase().split(".").pop() || ""
+        );
+      if (fileIsImage && file.size > 1000 * 1000) {
+        data = await compressImage(file, 1920, 0.8);
+        mime = "image/jpeg";
+        if (!uploadName.toLowerCase().endsWith('.jpg') && !uploadName.toLowerCase().endsWith('.jpeg')) {
+          uploadName = `${uploadName}.jpg`;
+        }
+      } else {
+        const buffer = await file.arrayBuffer();
+        data = new Uint8Array(buffer);
+      }
+
       await uploadFn({
         formType,
         formId,
-        fileName: file.name,
-        fileData: new Uint8Array(buffer) as Uint8Array<ArrayBuffer>,
-        mimeType: file.type,
+        fileName: uploadName,
+        fileData: data,
+        mimeType: mime,
       });
       uploadedCount += 1;
     } catch (err) {

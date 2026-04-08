@@ -34,23 +34,35 @@ export const attachmentRouter = router({
         // Upload to S3
         // Validate for concrete form: only allow common mobile image types
         if (input.formType === 'concrete') {
+          const ext = (input.fileName || '').toLowerCase().includes('.')
+            ? (input.fileName || '').toLowerCase().slice((input.fileName || '').lastIndexOf('.'))
+            : '';
+
+          // Infer MIME from extension when browser sends empty string (common for HEIC/HEIF)
+          const extToMime: Record<string, string> = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.webp': 'image/webp',
+            '.heic': 'image/heic', '.heif': 'image/heif',
+            '.avif': 'image/avif', '.gif': 'image/gif',
+            '.tiff': 'image/tiff', '.tif': 'image/tiff',
+            '.bmp': 'image/bmp', '.svg': 'image/svg+xml',
+          };
+          const effectiveMime = (input.mimeType && input.mimeType !== 'application/octet-stream')
+            ? input.mimeType.toLowerCase()
+            : (extToMime[ext] || input.mimeType || '').toLowerCase();
+
           const allowed = new Set([
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/webp',
-            'image/heic',
-            'image/heif',
-            'image/avif',
-            'image/gif',
-            'image/tiff',
-            'image/bmp',
-            'image/svg+xml',
+            'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+            'image/heic', 'image/heif', 'image/avif', 'image/gif',
+            'image/tiff', 'image/bmp', 'image/svg+xml',
           ]);
-          const ext = (input.fileName || '').toLowerCase().includes('.') ? (input.fileName || '').toLowerCase().slice((input.fileName || '').lastIndexOf('.')) : '';
-          const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif', '.tif', '.tiff', '.bmp', '.svg']);
-          if (!(allowed.has((input.mimeType || '').toLowerCase()) || allowedExt.has(ext))) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unsupported file type for concrete attachments' });
+          const allowedExt = new Set([
+            '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif',
+            '.avif', '.gif', '.tif', '.tiff', '.bmp', '.svg',
+          ]);
+
+          if (!(allowed.has(effectiveMime) || allowedExt.has(ext))) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `Unsupported file type for concrete attachments: ${input.fileName}` });
           }
           if (!input.fileData || (input.fileData as Uint8Array).length === 0) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Empty or corrupted file' });
@@ -59,11 +71,28 @@ export const attachmentRouter = router({
 
         const fileKey = `attachments/${ctx.user.id}/${input.formType}/${input.formId}/${Date.now()}-${input.fileName}`;
         const fileBuffer = Buffer.from(input.fileData);
-        const { url } = await storagePut(
-          fileKey,
-          fileBuffer,
-          input.mimeType || "application/octet-stream"
-        );
+
+        // Use effective MIME (may have been inferred from extension for HEIC etc.)
+        const storedMime = (() => {
+          if (input.mimeType && input.mimeType !== 'application/octet-stream' && input.mimeType !== '') {
+            return input.mimeType;
+          }
+          const ext = (input.fileName || '').toLowerCase().includes('.')
+            ? input.fileName.toLowerCase().slice(input.fileName.lastIndexOf('.'))
+            : '';
+          const m: Record<string, string> = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.webp': 'image/webp',
+            '.heic': 'image/heic', '.heif': 'image/heif',
+            '.avif': 'image/avif', '.gif': 'image/gif',
+            '.tiff': 'image/tiff', '.tif': 'image/tiff',
+            '.bmp': 'image/bmp', '.svg': 'image/svg+xml',
+            '.pdf': 'application/pdf',
+          };
+          return m[ext] || 'application/octet-stream';
+        })();
+
+        const { url } = await storagePut(fileKey, fileBuffer, storedMime);
 
         // Store metadata in database
         await dbAttach.createAttachment({
@@ -73,7 +102,7 @@ export const attachmentRouter = router({
           fileName: input.fileName,
           fileKey,
           fileUrl: url,
-          mimeType: input.mimeType,
+          mimeType: storedMime,
           fileSize: input.fileData.length,
         });
 

@@ -941,11 +941,12 @@ export async function generateConcreteTestPDF(
 
   // ── 8. FOOTER ──────────────────────────────────────────────────────────
 
-  // ── 9. ATTACHMENTS (new page) ──────────────────────────────────────────
+  // ── 9. ATTACHMENTS (inline after comments, page-break safe) ───────────
   if (attachments?.length) {
     let attachmentPage = page;
     let attachmentCtx: Ctx = ctx;
-    let attachmentY = y - 8;
+    // Clamp so we never start below the safe minimum
+    let attachmentY = Math.max(y - 8, 52 + 40);
     const imageColumnGap = 8;
     const imageColumns = 3;
     const imageCellWidth = (CW - imageColumnGap * (imageColumns - 1)) / imageColumns;
@@ -1054,6 +1055,3 @@ export async function generateConcreteTestPDF(
 
   return Buffer.from(await pdfDoc.save());
 }
-
-
-
